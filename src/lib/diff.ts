@@ -14,145 +14,115 @@ export type CharDiff = {
 };
 
 /**
- * Computes a line-by-line diff between two texts using Myers' algorithm
+ * Computes a line-by-line diff using the Patience Diff algorithm.
+ * This algorithm is better at handling moved blocks of code.
  */
 export function computeDiff(left: string, right: string): DiffLine[] {
 	const leftLines = splitLines(normalizeNewlines(left));
 	const rightLines = splitLines(normalizeNewlines(right));
 
-	// Use a simple LCS-based approach with better matching
 	const result: DiffLine[] = [];
-
-	// Build a map of line content to positions for faster lookup
-	const rightLineMap = new Map<string, number[]>();
-	rightLines.forEach((line, idx) => {
-		if (!rightLineMap.has(line)) {
-			rightLineMap.set(line, []);
-		}
-		rightLineMap.get(line)!.push(idx);
-	});
-
-	let leftIndex = 0;
-	let rightIndex = 0;
 	let leftLineNum = 1;
 	let rightLineNum = 1;
 
-	while (leftIndex < leftLines.length || rightIndex < rightLines.length) {
-		if (leftIndex >= leftLines.length) {
-			// Only right side has lines
-			result.push({
-				type: "insert",
-				rightLine: rightLines[rightIndex],
-				rightLineNumber: rightLineNum++,
-			});
-			rightIndex++;
-		} else if (rightIndex >= rightLines.length) {
-			// Only left side has lines
-			result.push({
-				type: "delete",
-				leftLine: leftLines[leftIndex],
-				leftLineNumber: leftLineNum++,
-			});
-			leftIndex++;
-		} else if (leftLines[leftIndex] === rightLines[rightIndex]) {
-			// Lines match exactly
+	// Use Patience Diff to get the optimal alignment
+	const lcs = patienceDiff(leftLines, rightLines);
+
+	let leftIdx = 0;
+	let rightIdx = 0;
+	let lcsIdx = 0;
+
+	while (leftIdx < leftLines.length || rightIdx < rightLines.length) {
+		// Check if current positions match an LCS entry
+		if (
+			lcsIdx < lcs.length &&
+			leftIdx === lcs[lcsIdx].leftIdx &&
+			rightIdx === lcs[lcsIdx].rightIdx
+		) {
+			// Lines match - emit equal
 			result.push({
 				type: "equal",
-				leftLine: leftLines[leftIndex],
-				rightLine: rightLines[rightIndex],
+				leftLine: leftLines[leftIdx],
+				rightLine: rightLines[rightIdx],
 				leftLineNumber: leftLineNum++,
 				rightLineNumber: rightLineNum++,
 			});
-			leftIndex++;
-			rightIndex++;
+			leftIdx++;
+			rightIdx++;
+			lcsIdx++;
 		} else {
-			// Lines differ - try to find the best match
-			const currentLeft = leftLines[leftIndex];
-			const possibleMatches = rightLineMap.get(currentLeft) || [];
+			// Find next LCS match to know our boundaries
+			const nextLcs = lcs[lcsIdx];
+			const leftBound = nextLcs ? nextLcs.leftIdx : leftLines.length;
+			const rightBound = nextLcs ? nextLcs.rightIdx : rightLines.length;
 
-			// Find the closest match in the remaining right lines
-			let bestMatch = -1;
-			let bestDistance = Infinity;
+			// Collect unmatched lines
+			const leftUnmatched: number[] = [];
+			const rightUnmatched: number[] = [];
 
-			for (const matchIdx of possibleMatches) {
-				if (matchIdx >= rightIndex) {
-					const distance = matchIdx - rightIndex;
-					if (distance < bestDistance) {
-						bestDistance = distance;
-						bestMatch = matchIdx;
-					}
-				}
+			while (leftIdx < leftBound) {
+				leftUnmatched.push(leftIdx++);
+			}
+			while (rightIdx < rightBound) {
+				rightUnmatched.push(rightIdx++);
 			}
 
-			// Also check if current right line appears later in left
-			const currentRight = rightLines[rightIndex];
-			let leftMatch = -1;
-			for (
-				let i = leftIndex + 1;
-				i < Math.min(leftIndex + 20, leftLines.length);
-				i++
-			) {
-				if (leftLines[i] === currentRight) {
-					leftMatch = i;
-					break;
-				}
-			}
+			// Try to pair similar lines as modifications
+			const pairs = pairSimilarLines(
+				leftUnmatched.map((i) => leftLines[i]),
+				rightUnmatched.map((i) => rightLines[i]),
+			);
 
-			if (
-				bestMatch !== -1 &&
-				bestMatch === rightIndex + 1 &&
-				leftMatch === -1
-			) {
-				// Insert the right line first, then continue
-				result.push({
-					type: "insert",
-					rightLine: rightLines[rightIndex],
-					rightLineNumber: rightLineNum++,
-				});
-				rightIndex++;
-			} else if (
-				leftMatch !== -1 &&
-				leftMatch === leftIndex + 1 &&
-				bestMatch === -1
-			) {
-				// Delete the left line first, then continue
-				result.push({
-					type: "delete",
-					leftLine: leftLines[leftIndex],
-					leftLineNumber: leftLineNum++,
-				});
-				leftIndex++;
-			} else if (bestMatch !== -1 && bestMatch < rightIndex + 10) {
-				// Insert lines until we reach the match
-				while (rightIndex < bestMatch) {
-					result.push({
-						type: "insert",
-						rightLine: rightLines[rightIndex],
-						rightLineNumber: rightLineNum++,
-					});
-					rightIndex++;
-				}
-			} else if (leftMatch !== -1 && leftMatch < leftIndex + 10) {
-				// Delete lines until we reach the match
-				while (leftIndex < leftMatch) {
+			let leftU = 0;
+			let rightU = 0;
+
+			for (const pair of pairs) {
+				// Emit any unpaired deletions before this pair
+				while (leftU < pair.leftIdx) {
 					result.push({
 						type: "delete",
-						leftLine: leftLines[leftIndex],
+						leftLine: leftLines[leftUnmatched[leftU]],
 						leftLineNumber: leftLineNum++,
 					});
-					leftIndex++;
+					leftU++;
 				}
-			} else {
-				// Treat as modification
+				// Emit any unpaired insertions before this pair
+				while (rightU < pair.rightIdx) {
+					result.push({
+						type: "insert",
+						rightLine: rightLines[rightUnmatched[rightU]],
+						rightLineNumber: rightLineNum++,
+					});
+					rightU++;
+				}
+				// Emit the modification pair
 				result.push({
 					type: "modify",
-					leftLine: leftLines[leftIndex],
-					rightLine: rightLines[rightIndex],
+					leftLine: leftLines[leftUnmatched[leftU]],
+					rightLine: rightLines[rightUnmatched[rightU]],
 					leftLineNumber: leftLineNum++,
 					rightLineNumber: rightLineNum++,
 				});
-				leftIndex++;
-				rightIndex++;
+				leftU++;
+				rightU++;
+			}
+
+			// Emit remaining unmatched lines
+			while (leftU < leftUnmatched.length) {
+				result.push({
+					type: "delete",
+					leftLine: leftLines[leftUnmatched[leftU]],
+					leftLineNumber: leftLineNum++,
+				});
+				leftU++;
+			}
+			while (rightU < rightUnmatched.length) {
+				result.push({
+					type: "insert",
+					rightLine: rightLines[rightUnmatched[rightU]],
+					rightLineNumber: rightLineNum++,
+				});
+				rightU++;
 			}
 		}
 	}
@@ -160,13 +130,342 @@ export function computeDiff(left: string, right: string): DiffLine[] {
 	return result;
 }
 
+/**
+ * Patience Diff algorithm - finds LCS using unique lines as anchors
+ */
+function patienceDiff(
+	left: string[],
+	right: string[],
+): Array<{ leftIdx: number; rightIdx: number }> {
+	if (left.length === 0 || right.length === 0) {
+		return [];
+	}
+
+	// Find unique lines in both arrays
+	const leftUnique = new Map<string, number[]>();
+	const rightUnique = new Map<string, number[]>();
+
+	for (let i = 0; i < left.length; i++) {
+		const line = left[i];
+		if (!leftUnique.has(line)) {
+			leftUnique.set(line, []);
+		}
+		leftUnique.get(line)!.push(i);
+	}
+
+	for (let i = 0; i < right.length; i++) {
+		const line = right[i];
+		if (!rightUnique.has(line)) {
+			rightUnique.set(line, []);
+		}
+		rightUnique.get(line)!.push(i);
+	}
+
+	// Find lines that appear exactly once in both
+	const uniqueMatches: Array<{ leftIdx: number; rightIdx: number }> = [];
+
+	for (const [line, leftIndices] of leftUnique) {
+		const rightIndices = rightUnique.get(line);
+		if (
+			leftIndices.length === 1 &&
+			rightIndices &&
+			rightIndices.length === 1
+		) {
+			uniqueMatches.push({
+				leftIdx: leftIndices[0],
+				rightIdx: rightIndices[0],
+			});
+		}
+	}
+
+	// Sort by left index
+	uniqueMatches.sort((a, b) => a.leftIdx - b.leftIdx);
+
+	// Find LIS (Longest Increasing Subsequence) by right index
+	// This gives us the longest chain of unique matching lines
+	const lis = longestIncreasingSubsequence(
+		uniqueMatches.map((m) => m.rightIdx),
+	);
+	const anchors = lis.map((i) => uniqueMatches[i]);
+
+	// If no unique anchors, fall back to standard LCS
+	if (anchors.length === 0) {
+		return standardLCS(left, right);
+	}
+
+	// Recursively diff between anchors
+	const result: Array<{ leftIdx: number; rightIdx: number }> = [];
+
+	let prevLeftIdx = 0;
+	let prevRightIdx = 0;
+
+	for (const anchor of anchors) {
+		// Diff the section before this anchor
+		const leftSection = left.slice(prevLeftIdx, anchor.leftIdx);
+		const rightSection = right.slice(prevRightIdx, anchor.rightIdx);
+
+		const subDiff = patienceDiff(leftSection, rightSection);
+		for (const match of subDiff) {
+			result.push({
+				leftIdx: match.leftIdx + prevLeftIdx,
+				rightIdx: match.rightIdx + prevRightIdx,
+			});
+		}
+
+		// Add the anchor itself
+		result.push(anchor);
+
+		prevLeftIdx = anchor.leftIdx + 1;
+		prevRightIdx = anchor.rightIdx + 1;
+	}
+
+	// Diff the section after the last anchor
+	const leftSection = left.slice(prevLeftIdx);
+	const rightSection = right.slice(prevRightIdx);
+
+	const subDiff = patienceDiff(leftSection, rightSection);
+	for (const match of subDiff) {
+		result.push({
+			leftIdx: match.leftIdx + prevLeftIdx,
+			rightIdx: match.rightIdx + prevRightIdx,
+		});
+	}
+
+	return result;
+}
+
+/**
+ * Standard LCS algorithm for sections without unique lines
+ */
+function standardLCS(
+	left: string[],
+	right: string[],
+): Array<{ leftIdx: number; rightIdx: number }> {
+	const m = left.length;
+	const n = right.length;
+
+	if (m === 0 || n === 0) return [];
+
+	// Build LCS table
+	const dp: number[][] = Array.from({ length: m + 1 }, () =>
+		Array(n + 1).fill(0),
+	);
+
+	for (let i = 1; i <= m; i++) {
+		for (let j = 1; j <= n; j++) {
+			if (left[i - 1] === right[j - 1]) {
+				dp[i][j] = dp[i - 1][j - 1] + 1;
+			} else {
+				dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+			}
+		}
+	}
+
+	// Backtrack to find actual LCS - prefer earlier matches in right array
+	const result: Array<{ leftIdx: number; rightIdx: number }> = [];
+	let i = m;
+	let j = n;
+
+	while (i > 0 && j > 0) {
+		if (left[i - 1] === right[j - 1]) {
+			// Check if we can get same LCS length by going left (earlier right match)
+			if (j > 1 && dp[i][j - 1] === dp[i][j]) {
+				j--;
+			} else {
+				result.unshift({ leftIdx: i - 1, rightIdx: j - 1 });
+				i--;
+				j--;
+			}
+		} else if (dp[i - 1][j] >= dp[i][j - 1]) {
+			i--;
+		} else {
+			j--;
+		}
+	}
+
+	return result;
+}
+
+/**
+ * Find Longest Increasing Subsequence - returns indices
+ */
+function longestIncreasingSubsequence(arr: number[]): number[] {
+	if (arr.length === 0) return [];
+
+	const n = arr.length;
+	const dp: number[] = Array(n).fill(1);
+	const parent: number[] = Array(n).fill(-1);
+
+	let maxLen = 1;
+	let maxIdx = 0;
+
+	for (let i = 1; i < n; i++) {
+		for (let j = 0; j < i; j++) {
+			if (arr[j] < arr[i] && dp[j] + 1 > dp[i]) {
+				dp[i] = dp[j] + 1;
+				parent[i] = j;
+			}
+		}
+		if (dp[i] > maxLen) {
+			maxLen = dp[i];
+			maxIdx = i;
+		}
+	}
+
+	// Reconstruct the subsequence
+	const result: number[] = [];
+	let idx = maxIdx;
+	while (idx !== -1) {
+		result.unshift(idx);
+		idx = parent[idx];
+	}
+
+	return result;
+}
+
+/**
+ * Pair similar unmatched lines as modifications
+ */
+function pairSimilarLines(
+	left: string[],
+	right: string[],
+): Array<{ leftIdx: number; rightIdx: number }> {
+	const pairs: Array<{ leftIdx: number; rightIdx: number; score: number }> =
+		[];
+
+	// Calculate similarity scores for all pairs
+	for (let i = 0; i < left.length; i++) {
+		for (let j = 0; j < right.length; j++) {
+			const score = similarity(left[i], right[j]);
+			// Lower threshold (0.2) to catch more modifications
+			// Single char changes like "b" → "B" should still pair
+			if (score > 0.2) {
+				pairs.push({ leftIdx: i, rightIdx: j, score });
+			}
+		}
+	}
+
+	// Sort by score descending
+	pairs.sort((a, b) => b.score - a.score);
+
+	// Greedily select non-conflicting pairs
+	const usedLeft = new Set<number>();
+	const usedRight = new Set<number>();
+	const result: Array<{ leftIdx: number; rightIdx: number }> = [];
+
+	for (const pair of pairs) {
+		if (!usedLeft.has(pair.leftIdx) && !usedRight.has(pair.rightIdx)) {
+			result.push({ leftIdx: pair.leftIdx, rightIdx: pair.rightIdx });
+			usedLeft.add(pair.leftIdx);
+			usedRight.add(pair.rightIdx);
+		}
+	}
+
+	// Sort by left index for proper ordering
+	result.sort((a, b) => a.leftIdx - b.leftIdx);
+
+	return result;
+}
+
+/**
+ * Calculate similarity between two strings (0-1)
+ */
+function similarity(a: string, b: string): number {
+	if (a === b) return 1;
+	if (a.length === 0 || b.length === 0) return 0;
+
+	// Trim and compare
+	const aTrim = a.trim();
+	const bTrim = b.trim();
+	if (aTrim === bTrim) return 0.95;
+
+	// For very short strings, use case-insensitive comparison
+	if (aTrim.length <= 3 && bTrim.length <= 3) {
+		if (aTrim.toLowerCase() === bTrim.toLowerCase()) return 0.9;
+	}
+
+	const minLen = Math.min(aTrim.length, bTrim.length);
+	const maxLen = Math.max(aTrim.length, bTrim.length);
+
+	if (minLen === 0) return 0;
+
+	// Levenshtein-based similarity for short strings
+	if (maxLen <= 10) {
+		const dist = levenshtein(aTrim, bTrim);
+		return 1 - dist / maxLen;
+	}
+
+	// For longer strings, use token-based comparison
+	const aWords = aTrim.split(/\s+/);
+	const bWords = bTrim.split(/\s+/);
+
+	// Count matching words
+	let wordMatches = 0;
+	const maxWords = Math.max(aWords.length, bWords.length);
+	const minWords = Math.min(aWords.length, bWords.length);
+
+	for (let i = 0; i < minWords; i++) {
+		if (aWords[i] === bWords[i]) {
+			wordMatches++;
+		} else if (
+			aWords[i].toLowerCase() === bWords[i].toLowerCase() ||
+			levenshtein(aWords[i], bWords[i]) <= 2
+		) {
+			wordMatches += 0.7;
+		}
+	}
+
+	// Also check for common prefix
+	let commonPrefix = 0;
+	for (let i = 0; i < minLen; i++) {
+		if (aTrim[i] === bTrim[i]) commonPrefix++;
+		else break;
+	}
+
+	const wordScore = maxWords > 0 ? wordMatches / maxWords : 0;
+	const prefixScore = commonPrefix / maxLen;
+
+	return Math.max(wordScore, prefixScore);
+}
+
+/**
+ * Levenshtein distance between two strings
+ */
+function levenshtein(a: string, b: string): number {
+	if (a.length === 0) return b.length;
+	if (b.length === 0) return a.length;
+
+	const matrix: number[][] = [];
+
+	for (let i = 0; i <= b.length; i++) {
+		matrix[i] = [i];
+	}
+	for (let j = 0; j <= a.length; j++) {
+		matrix[0][j] = j;
+	}
+
+	for (let i = 1; i <= b.length; i++) {
+		for (let j = 1; j <= a.length; j++) {
+			if (b[i - 1] === a[j - 1]) {
+				matrix[i][j] = matrix[i - 1][j - 1];
+			} else {
+				matrix[i][j] = Math.min(
+					matrix[i - 1][j - 1] + 1,
+					matrix[i][j - 1] + 1,
+					matrix[i - 1][j] + 1,
+				);
+			}
+		}
+	}
+
+	return matrix[b.length][a.length];
+}
+
 function normalizeNewlines(text: string): string {
-	// Normalize CRLF and CR to LF so diffs don't show spurious '\r' changes.
 	return text.replace(/\r\n?/g, "\n");
 }
 
 function splitLines(text: string): string[] {
-	// Treat empty input as having no lines, so "" -> [] (avoids a bogus modify vs insert/delete).
 	if (text.length === 0) return [];
 	return text.split("\n");
 }
@@ -181,15 +480,12 @@ function tokenize(text: string): string[] {
 	let match;
 
 	while ((match = wordRegex.exec(text)) !== null) {
-		// Add whitespace before word
 		if (match.index > lastIndex) {
 			tokens.push(text.substring(lastIndex, match.index));
 		}
-		// Add word
 		tokens.push(match[0]);
 		lastIndex = match.index + match[0].length;
 	}
-	// Add remaining whitespace
 	if (lastIndex < text.length) {
 		tokens.push(text.substring(lastIndex));
 	}
@@ -206,6 +502,10 @@ function computeCharDiff(
 ): { left: CharDiff[]; right: CharDiff[] } {
 	const leftTokens = tokenize(left);
 	const rightTokens = tokenize(right);
+
+	// Use LCS on tokens
+	const lcs = tokenLCS(leftTokens, rightTokens);
+
 	const result: { left: CharDiff[]; right: CharDiff[] } = {
 		left: [],
 		right: [],
@@ -213,144 +513,87 @@ function computeCharDiff(
 
 	let leftIdx = 0;
 	let rightIdx = 0;
+	let lcsIdx = 0;
 
 	while (leftIdx < leftTokens.length || rightIdx < rightTokens.length) {
-		if (leftIdx >= leftTokens.length) {
-			// Only right side has tokens
-			if (
-				result.right.length > 0 &&
-				result.right[result.right.length - 1].type === "insert"
-			) {
-				result.right[result.right.length - 1].text +=
-					rightTokens[rightIdx];
-			} else {
-				result.right.push({
-					type: "insert",
-					text: rightTokens[rightIdx],
-				});
-			}
-			rightIdx++;
-		} else if (rightIdx >= rightTokens.length) {
-			// Only left side has tokens
-			if (
-				result.left.length > 0 &&
-				result.left[result.left.length - 1].type === "delete"
-			) {
-				result.left[result.left.length - 1].text += leftTokens[leftIdx];
-			} else {
-				result.left.push({ type: "delete", text: leftTokens[leftIdx] });
-			}
-			leftIdx++;
-		} else if (leftTokens[leftIdx] === rightTokens[rightIdx]) {
-			// Tokens match
-			if (
-				result.left.length > 0 &&
-				result.left[result.left.length - 1].type === "equal"
-			) {
-				result.left[result.left.length - 1].text += leftTokens[leftIdx];
-			} else {
-				result.left.push({ type: "equal", text: leftTokens[leftIdx] });
-			}
-			if (
-				result.right.length > 0 &&
-				result.right[result.right.length - 1].type === "equal"
-			) {
-				result.right[result.right.length - 1].text +=
-					rightTokens[rightIdx];
-			} else {
-				result.right.push({
-					type: "equal",
-					text: rightTokens[rightIdx],
-				});
-			}
+		if (
+			lcsIdx < lcs.length &&
+			leftIdx === lcs[lcsIdx].leftIdx &&
+			rightIdx === lcs[lcsIdx].rightIdx
+		) {
+			// Matching token
+			appendCharDiff(result.left, "equal", leftTokens[leftIdx]);
+			appendCharDiff(result.right, "equal", rightTokens[rightIdx]);
 			leftIdx++;
 			rightIdx++;
+			lcsIdx++;
 		} else {
-			// Tokens differ - try to find matching token ahead
-			let foundMatch = false;
-			const maxLookAhead = Math.min(
-				10,
-				Math.max(
-					leftTokens.length - leftIdx,
-					rightTokens.length - rightIdx,
-				),
-			);
+			const nextLcs = lcs[lcsIdx];
+			const leftBound = nextLcs ? nextLcs.leftIdx : leftTokens.length;
+			const rightBound = nextLcs ? nextLcs.rightIdx : rightTokens.length;
 
-			for (
-				let lookAhead = 1;
-				lookAhead <= maxLookAhead && !foundMatch;
-				lookAhead++
-			) {
-				if (
-					leftIdx + lookAhead < leftTokens.length &&
-					leftTokens[leftIdx + lookAhead] === rightTokens[rightIdx]
-				) {
-					// Found match - left has deletions
-					if (
-						result.left.length > 0 &&
-						result.left[result.left.length - 1].type === "delete"
-					) {
-						result.left[result.left.length - 1].text +=
-							leftTokens[leftIdx];
-					} else {
-						result.left.push({
-							type: "delete",
-							text: leftTokens[leftIdx],
-						});
-					}
-					leftIdx++;
-					foundMatch = true;
-				} else if (
-					rightIdx + lookAhead < rightTokens.length &&
-					leftTokens[leftIdx] === rightTokens[rightIdx + lookAhead]
-				) {
-					// Found match - right has insertions
-					if (
-						result.right.length > 0 &&
-						result.right[result.right.length - 1].type === "insert"
-					) {
-						result.right[result.right.length - 1].text +=
-							rightTokens[rightIdx];
-					} else {
-						result.right.push({
-							type: "insert",
-							text: rightTokens[rightIdx],
-						});
-					}
-					rightIdx++;
-					foundMatch = true;
-				}
-			}
-
-			if (!foundMatch) {
-				// Treat as modification - entire word changed
-				if (
-					result.left.length > 0 &&
-					result.left[result.left.length - 1].type === "delete"
-				) {
-					result.left[result.left.length - 1].text +=
-						leftTokens[leftIdx];
-				} else {
-					result.left.push({
-						type: "delete",
-						text: leftTokens[leftIdx],
-					});
-				}
-				if (
-					result.right.length > 0 &&
-					result.right[result.right.length - 1].type === "insert"
-				) {
-					result.right[result.right.length - 1].text +=
-						rightTokens[rightIdx];
-				} else {
-					result.right.push({
-						type: "insert",
-						text: rightTokens[rightIdx],
-					});
-				}
+			while (leftIdx < leftBound) {
+				appendCharDiff(result.left, "delete", leftTokens[leftIdx]);
 				leftIdx++;
+			}
+			while (rightIdx < rightBound) {
+				appendCharDiff(result.right, "insert", rightTokens[rightIdx]);
 				rightIdx++;
 			}
+		}
+	}
+
+	return result;
+}
+
+function appendCharDiff(
+	arr: CharDiff[],
+	type: "equal" | "insert" | "delete",
+	text: string,
+): void {
+	if (arr.length > 0 && arr[arr.length - 1].type === type) {
+		arr[arr.length - 1].text += text;
+	} else {
+		arr.push({ type, text });
+	}
+}
+
+function tokenLCS(
+	left: string[],
+	right: string[],
+): Array<{ leftIdx: number; rightIdx: number }> {
+	const m = left.length;
+	const n = right.length;
+
+	if (m === 0 || n === 0) return [];
+
+	const dp: number[][] = Array.from({ length: m + 1 }, () =>
+		Array(n + 1).fill(0),
+	);
+
+	for (let i = 1; i <= m; i++) {
+		for (let j = 1; j <= n; j++) {
+			if (left[i - 1] === right[j - 1]) {
+				dp[i][j] = dp[i - 1][j - 1] + 1;
+			} else {
+				dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+			}
+		}
+	}
+
+	const result: Array<{ leftIdx: number; rightIdx: number }> = [];
+	let i = m;
+	let j = n;
+
+	while (i > 0 && j > 0) {
+		if (left[i - 1] === right[j - 1]) {
+			result.unshift({ leftIdx: i - 1, rightIdx: j - 1 });
+			i--;
+			j--;
+		} else if (dp[i - 1][j] > dp[i][j - 1]) {
+			i--;
+		} else {
+			j--;
 		}
 	}
 

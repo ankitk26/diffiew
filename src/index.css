@@ -136,6 +136,9 @@
 	code {
 		font-family: "JetBrains Mono Variable", monospace;
 	}
+	button {
+		@apply cursor-pointer;
+	}
 }
 
 @layer utilities {

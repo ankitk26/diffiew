@@ -11,9 +11,11 @@ import {
 	IconCopy,
 	IconFileUpload,
 	IconMinus,
+	IconPencil,
 	IconPlus,
+	IconEye,
 } from "@tabler/icons-react";
-import { useCallback, useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 
 interface DiffEditorProps {
 	left: string;
@@ -48,18 +50,16 @@ export function DiffEditor({
 		const diff = computeDiff(left, right);
 		return enhanceWithCharDiffs(diff);
 	}, [left, right]);
-	const leftScrollRef = useRef<HTMLDivElement>(null);
-	const rightScrollRef = useRef<HTMLDivElement>(null);
-	const isScrollingRef = useRef(false);
+
+	const [editingSide, setEditingSide] = useState<"both" | null>(null);
+	const leftTextareaRef = useRef<HTMLTextAreaElement>(null);
+	const rightTextareaRef = useRef<HTMLTextAreaElement>(null);
+	const isEditing = editingSide === "both";
 
 	const diffStats = {
 		added: diffLines.filter((l) => l.type === "insert").length,
 		removed: diffLines.filter((l) => l.type === "delete").length,
 		modified: diffLines.filter((l) => l.type === "modify").length,
-		totalLines: Math.max(
-			diffLines.filter((l) => l.leftLineNumber).length,
-			diffLines.filter((l) => l.rightLineNumber).length,
-		),
 	};
 
 	const handleCopyLeft = () => {
@@ -76,36 +76,18 @@ export function DiffEditor({
 		onRightChange?.(temp);
 	};
 
-	const handleLeftScroll = useCallback(() => {
-		if (isScrollingRef.current) return;
-		if (leftScrollRef.current && rightScrollRef.current) {
-			isScrollingRef.current = true;
-			rightScrollRef.current.scrollTop = leftScrollRef.current.scrollTop;
-			requestAnimationFrame(() => {
-				isScrollingRef.current = false;
-			});
-		}
-	}, []);
-
-	const handleRightScroll = useCallback(() => {
-		if (isScrollingRef.current) return;
-		if (leftScrollRef.current && rightScrollRef.current) {
-			isScrollingRef.current = true;
-			leftScrollRef.current.scrollTop = rightScrollRef.current.scrollTop;
-			requestAnimationFrame(() => {
-				isScrollingRef.current = false;
-			});
-		}
-	}, []);
+	const toggleMode = () => {
+		setEditingSide(editingSide === null ? "both" : null);
+	};
 
 	const renderCharDiff = (charDiffs: CharDiff[], isLeft: boolean) => {
 		return charDiffs.map((charDiff, idx) => {
 			const className =
 				charDiff.type === "delete" && isLeft
-					? "bg-rose-500/40 dark:bg-rose-400/30 text-transparent rounded-sm"
+					? "bg-rose-500/40 dark:bg-rose-400/30 rounded-sm"
 					: charDiff.type === "insert" && !isLeft
-						? "bg-emerald-500/40 dark:bg-emerald-400/30 text-transparent rounded-sm"
-						: "text-transparent";
+						? "bg-emerald-500/40 dark:bg-emerald-400/30 rounded-sm"
+						: "";
 			return (
 				<span key={idx} className={cn(className, "whitespace-pre")}>
 					{charDiff.text}
@@ -114,92 +96,113 @@ export function DiffEditor({
 		});
 	};
 
-	const renderLine = (
-		line: DiffLine,
-		index: number,
-		side: "left" | "right",
-	) => {
-		const isLeft = side === "left";
-		const lineContent = isLeft ? line.leftLine : line.rightLine;
-		const lineNumber = isLeft ? line.leftLineNumber : line.rightLineNumber;
-		const charDiffs = isLeft ? line.leftCharDiffs : line.rightCharDiffs;
+	const renderDiffRow = (line: DiffLine, index: number) => {
+		const hasLeft = line.leftLine !== undefined;
+		const hasRight = line.rightLine !== undefined;
 
-		const shouldShow =
-			(isLeft &&
-				(line.leftLine !== undefined || line.type === "delete")) ||
-			(!isLeft &&
-				(line.rightLine !== undefined || line.type === "insert"));
+		// Background colors for cells
+		const leftBgColor =
+			line.type === "delete"
+				? "bg-rose-500/10 dark:bg-rose-500/20"
+				: line.type === "modify"
+					? "bg-rose-500/10 dark:bg-rose-500/20"
+					: "";
 
-		if (!shouldShow) {
-			const bgColor =
-				line.type === "delete" && isLeft
-					? "bg-rose-500/5 dark:bg-rose-500/10"
-					: line.type === "insert" && !isLeft
-						? "bg-emerald-500/5 dark:bg-emerald-500/10"
-						: line.type === "modify" && isLeft
-							? "bg-rose-500/5 dark:bg-rose-500/10"
-							: line.type === "modify" && !isLeft
-								? "bg-emerald-500/5 dark:bg-emerald-500/10"
-								: "";
+		const rightBgColor =
+			line.type === "insert"
+				? "bg-emerald-500/10 dark:bg-emerald-500/20"
+				: line.type === "modify"
+					? "bg-emerald-500/10 dark:bg-emerald-500/20"
+					: "";
 
-			return (
-				<div
-					key={`${side}-${index}`}
-					className={cn("flex h-5", bgColor)}
-				>
-					<div className="shrink-0 w-10 px-2 text-right text-[10px] text-muted-foreground/50 select-none leading-code tabular-nums" />
-					<div className="flex-1 px-3 text-code leading-code whitespace-pre break-all">
-						<span className="text-transparent">&nbsp;</span>
-					</div>
-				</div>
-			);
-		}
+		// Blank placeholder background (when line doesn't exist on that side)
+		const leftPlaceholderBg = !hasLeft
+			? "bg-muted/50 dark:bg-muted/30"
+			: "";
+		const rightPlaceholderBg = !hasRight
+			? "bg-muted/50 dark:bg-muted/30"
+			: "";
 
-		const bgColor =
-			line.type === "delete" && isLeft
-				? "bg-rose-500/8 dark:bg-rose-500/15"
-				: line.type === "insert" && !isLeft
-					? "bg-emerald-500/8 dark:bg-emerald-500/15"
-					: line.type === "modify" && isLeft
-						? "bg-rose-500/8 dark:bg-rose-500/15"
-						: line.type === "modify" && !isLeft
-							? "bg-emerald-500/8 dark:bg-emerald-500/15"
-							: "";
+		// Gutter colors
+		const leftGutterColor =
+			line.type === "delete" || (line.type === "modify" && hasLeft)
+				? "text-rose-600/70 dark:text-rose-400/70"
+				: "text-muted-foreground/50";
 
-		const gutterColor =
-			line.type === "delete" && isLeft
-				? "text-rose-600/60 dark:text-rose-400/60"
-				: line.type === "insert" && !isLeft
-					? "text-emerald-600/60 dark:text-emerald-400/60"
-					: line.type === "modify" && isLeft
-						? "text-rose-600/60 dark:text-rose-400/60"
-						: line.type === "modify" && !isLeft
-							? "text-emerald-600/60 dark:text-emerald-400/60"
-							: "text-muted-foreground/40";
+		const rightGutterColor =
+			line.type === "insert" || (line.type === "modify" && hasRight)
+				? "text-emerald-600/70 dark:text-emerald-400/70"
+				: "text-muted-foreground/50";
 
 		return (
-			<div
-				key={`${side}-${index}`}
-				className={cn("flex min-h-5", bgColor)}
-			>
+			<div key={index} className="flex min-h-5">
+				{/* Left Cell */}
 				<div
 					className={cn(
-						"shrink-0 w-10 px-2 text-right text-[10px] select-none leading-code tabular-nums",
-						gutterColor,
+						"flex-1 flex",
+						leftBgColor,
+						leftPlaceholderBg,
 					)}
 				>
-					{lineNumber || ""}
+					{/* Left Gutter */}
+					<div
+						className={cn(
+							"shrink-0 w-10 px-2 text-right text-[10px] select-none leading-code tabular-nums",
+							leftGutterColor,
+						)}
+					>
+						{hasLeft ? line.leftLineNumber : ""}
+					</div>
+					{/* Left Content */}
+					<div className="flex-1 px-3 text-code leading-code whitespace-pre break-all">
+						{hasLeft ? (
+							line.leftCharDiffs ? (
+								<span className="whitespace-pre">
+									{renderCharDiff(line.leftCharDiffs, true)}
+								</span>
+							) : (
+								<span>{line.leftLine}</span>
+							)
+						) : (
+							<span className="text-transparent">&nbsp;</span>
+						)}
+					</div>
 				</div>
-				<div className="flex-1 px-3 text-code leading-code whitespace-pre break-all">
-					{charDiffs ? (
-						<span className="whitespace-pre">
-							{renderCharDiff(charDiffs, isLeft)}
-						</span>
-					) : (
-						<span className="text-transparent">
-							{lineContent || " "}
-						</span>
+
+				{/* Divider */}
+				<div className="w-px bg-border/50 shrink-0" />
+
+				{/* Right Cell */}
+				<div
+					className={cn(
+						"flex-1 flex",
+						rightBgColor,
+						rightPlaceholderBg,
 					)}
+				>
+					{/* Right Gutter */}
+					<div
+						className={cn(
+							"shrink-0 w-10 px-2 text-right text-[10px] select-none leading-code tabular-nums",
+							rightGutterColor,
+						)}
+					>
+						{hasRight ? line.rightLineNumber : ""}
+					</div>
+					{/* Right Content */}
+					<div className="flex-1 px-3 text-code leading-code whitespace-pre break-all">
+						{hasRight ? (
+							line.rightCharDiffs ? (
+								<span className="whitespace-pre">
+									{renderCharDiff(line.rightCharDiffs, false)}
+								</span>
+							) : (
+								<span>{line.rightLine}</span>
+							)
+						) : (
+							<span className="text-transparent">&nbsp;</span>
+						)}
+					</div>
 				</div>
 			</div>
 		);
@@ -242,7 +245,7 @@ export function DiffEditor({
 
 					<div className="flex-1" />
 
-					{diffStats.removed > 0 && (
+					{!isEditing && diffStats.removed > 0 && (
 						<div className="flex items-center gap-1.5 text-code text-rose-600 dark:text-rose-400">
 							<IconMinus className="size-3" />
 							<span>{diffStats.removed}</span>
@@ -260,13 +263,40 @@ export function DiffEditor({
 					</Button>
 				</div>
 
-				{/* Center Divider with Swap */}
-				<div className="flex w-10 items-stretch border-x border-border/50">
+				{/* Center Controls */}
+				<div className="flex items-stretch border-x border-border/50">
+					<Button
+						variant="ghost"
+						onClick={toggleMode}
+						title={
+							isEditing
+								? "Switch to viewing"
+								: "Switch to editing"
+						}
+						className={cn(
+							"h-full px-3 rounded-none gap-1.5 text-[10px] font-medium",
+							isEditing
+								? "text-primary bg-primary/10"
+								: "text-muted-foreground hover:text-foreground",
+						)}
+					>
+						{isEditing ? (
+							<>
+								<IconPencil className="size-3" />
+								<span>Editing</span>
+							</>
+						) : (
+							<>
+								<IconEye className="size-3" />
+								<span>Viewing</span>
+							</>
+						)}
+					</Button>
 					<Button
 						variant="ghost"
 						onClick={handleSwap}
 						title="Swap"
-						className="h-full w-full rounded-none text-muted-foreground hover:text-foreground"
+						className="h-full px-3 rounded-none text-muted-foreground hover:text-foreground"
 					>
 						<IconArrowsLeftRight className="size-3" />
 					</Button>
@@ -305,7 +335,7 @@ export function DiffEditor({
 
 					<div className="flex-1" />
 
-					{diffStats.added > 0 && (
+					{!isEditing && diffStats.added > 0 && (
 						<div className="flex items-center gap-1.5 text-code text-emerald-600 dark:text-emerald-400">
 							<IconPlus className="size-3" />
 							<span>{diffStats.added}</span>
@@ -324,75 +354,44 @@ export function DiffEditor({
 				</div>
 			</div>
 
-			{/* Editor Panels */}
-			<div className="flex flex-1 overflow-hidden">
-				{/* Left Panel */}
-				<div className="flex-1 flex flex-col overflow-hidden relative">
-					{/* Diff Overlay */}
-					<div
-						ref={leftScrollRef}
-						onScroll={handleLeftScroll}
-						className="absolute inset-0 overflow-auto pointer-events-none z-0"
-					>
-						<div className="min-w-full">
-							{diffLines.map((line, index) =>
-								renderLine(line, index, "left"),
-							)}
-						</div>
+			{/* Diff View - Single scroll container */}
+			{!isEditing ? (
+				<div className="flex-1 overflow-auto">
+					<div className="min-w-full">
+						{diffLines.map((line, index) =>
+							renderDiffRow(line, index),
+						)}
 					</div>
-					{/* Editable Textarea */}
-					<textarea
-						value={left}
-						onChange={(e) => onLeftChange?.(e.target.value)}
-						onScroll={(e) => {
-							if (leftScrollRef.current) {
-								leftScrollRef.current.scrollTop =
-									e.currentTarget.scrollTop;
-								leftScrollRef.current.scrollLeft =
-									e.currentTarget.scrollLeft;
-							}
-							handleLeftScroll();
-						}}
-						className="relative z-10 flex-1 w-full pl-[52px] pr-3 py-0 text-code leading-code whitespace-pre break-all bg-transparent text-foreground caret-primary resize-none outline-none border-0"
-						spellCheck={false}
-					/>
 				</div>
-
-				{/* Divider */}
-				<div className="w-px bg-border/50" />
-
-				{/* Right Panel */}
-				<div className="flex-1 flex flex-col overflow-hidden relative">
-					{/* Diff Overlay */}
-					<div
-						ref={rightScrollRef}
-						onScroll={handleRightScroll}
-						className="absolute inset-0 overflow-auto pointer-events-none z-0"
-					>
-						<div className="min-w-full">
-							{diffLines.map((line, index) =>
-								renderLine(line, index, "right"),
-							)}
-						</div>
+			) : (
+				/* Edit Mode */
+				<div className="flex flex-1 overflow-hidden">
+					{/* Left Editor */}
+					<div className="flex-1 flex flex-col overflow-hidden">
+						<textarea
+							ref={leftTextareaRef}
+							value={left}
+							onChange={(e) => onLeftChange?.(e.target.value)}
+							className="flex-1 w-full px-3 py-2 text-code leading-code whitespace-pre bg-background text-foreground caret-primary resize-none outline-none border-0"
+							spellCheck={false}
+						/>
 					</div>
-					{/* Editable Textarea */}
-					<textarea
-						value={right}
-						onChange={(e) => onRightChange?.(e.target.value)}
-						onScroll={(e) => {
-							if (rightScrollRef.current) {
-								rightScrollRef.current.scrollTop =
-									e.currentTarget.scrollTop;
-								rightScrollRef.current.scrollLeft =
-									e.currentTarget.scrollLeft;
-							}
-							handleRightScroll();
-						}}
-						className="relative z-10 flex-1 w-full pl-[52px] pr-3 py-0 text-code leading-code whitespace-pre break-all bg-transparent text-foreground caret-primary resize-none outline-none border-0"
-						spellCheck={false}
-					/>
+
+					{/* Divider */}
+					<div className="w-px bg-border/50" />
+
+					{/* Right Editor */}
+					<div className="flex-1 flex flex-col overflow-hidden">
+						<textarea
+							ref={rightTextareaRef}
+							value={right}
+							onChange={(e) => onRightChange?.(e.target.value)}
+							className="flex-1 w-full px-3 py-2 text-code leading-code whitespace-pre bg-background text-foreground caret-primary resize-none outline-none border-0"
+							spellCheck={false}
+						/>
+					</div>
 				</div>
-			</div>
+			)}
 		</div>
 	);
 }
