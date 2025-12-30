@@ -1,0 +1,21 @@
+# Oxlint configuration
+# See https://oxc-project.github.io/docs/guide/usage/linting/configuration.html
+
+# Deny level rules (errors)
+deny = ["correctness", "suspicious"]
+
+# Warn level rules
+warn = ["perf", "style"]
+
+# Allow level rules (disabled)
+allow = ["pedantic"]
+
+# Ignore patterns
+ignore = [
+	"**/node_modules/**",
+	"**/dist/**",
+	"**/build/**",
+	"**/*.config.js",
+	"**/*.config.ts",
+]
+

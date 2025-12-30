@@ -1,7 +1,7 @@
 import { DiffViewer } from "@/components/diff-viewer";
 
 export function App() {
-  return <DiffViewer />;
+	return <DiffViewer />;
 }
 
 export default App;
