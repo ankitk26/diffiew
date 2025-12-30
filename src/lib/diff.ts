@@ -17,8 +17,8 @@ export type CharDiff = {
  * Computes a line-by-line diff between two texts using Myers' algorithm
  */
 export function computeDiff(left: string, right: string): DiffLine[] {
-  const leftLines = left.split('\n');
-  const rightLines = right.split('\n');
+  const leftLines = splitLines(normalizeNewlines(left));
+  const rightLines = splitLines(normalizeNewlines(right));
   
   // Use a simple LCS-based approach with better matching
   const result: DiffLine[] = [];
@@ -146,6 +146,17 @@ export function computeDiff(left: string, right: string): DiffLine[] {
   }
 
   return result;
+}
+
+function normalizeNewlines(text: string): string {
+  // Normalize CRLF and CR to LF so diffs don't show spurious '\r' changes.
+  return text.replace(/\r\n?/g, "\n");
+}
+
+function splitLines(text: string): string[] {
+  // Treat empty input as having no lines, so "" -> [] (avoids a bogus modify vs insert/delete).
+  if (text.length === 0) return [];
+  return text.split("\n");
 }
 
 /**
