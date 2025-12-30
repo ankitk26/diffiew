@@ -13,6 +13,7 @@
 	"dependencies": {
 		"@base-ui/react": "^1.0.0",
 		"@fontsource-variable/jetbrains-mono": "^5.2.8",
+		"@netlify/vite-plugin": "^2.7.19",
 		"@tabler/icons-react": "^3.36.0",
 		"@tailwindcss/vite": "^4.1.17",
 		"class-variance-authority": "^0.7.1",
