@@ -3,4 +3,13 @@
 	"printWidth": 80,
 	"useTabs": true,
 	"tabWidth": 4,
+	"ignorePatterns": [
+		"**/bun.lock*",
+		"**/package-lock.json",
+		"**/yarn.lock",
+		"**/pnpm-lock.yaml",
+		"**/node_modules/**",
+		"**/dist/**",
+		"**/build/**",
+	],
 }
