@@ -2,29 +2,38 @@ import { useState, useRef, useEffect } from "react";
 import { DiffEditor } from "./diff-editor";
 import { Button } from "./ui/button";
 import { IconSun, IconMoon } from "@tabler/icons-react";
+import { useTheme } from "./theme-provider";
 
 export function DiffViewer() {
 	const [leftText, setLeftText] = useState("");
 	const [rightText, setRightText] = useState("");
+	const { theme, setTheme } = useTheme();
 	const [isDark, setIsDark] = useState(() => {
-		if (typeof window !== "undefined") {
-			return document.documentElement.classList.contains("dark");
-		}
-		return true; // Default to dark mode
+		return document.documentElement.classList.contains("dark");
 	});
 	const leftFileInputRef = useRef<HTMLInputElement>(null);
 	const rightFileInputRef = useRef<HTMLInputElement>(null);
 
 	useEffect(() => {
-		if (isDark) {
-			document.documentElement.classList.add("dark");
-		} else {
-			document.documentElement.classList.remove("dark");
-		}
-	}, [isDark]);
+		const checkDarkMode = () => {
+			setIsDark(document.documentElement.classList.contains("dark"));
+		};
+
+		// Check immediately
+		checkDarkMode();
+
+		// Watch for changes
+		const observer = new MutationObserver(checkDarkMode);
+		observer.observe(document.documentElement, {
+			attributes: true,
+			attributeFilter: ["class"],
+		});
+
+		return () => observer.disconnect();
+	}, [theme]);
 
 	const toggleTheme = () => {
-		setIsDark(!isDark);
+		setTheme(isDark ? "light" : "dark");
 	};
 
 	const handleFileLoad = (side: "left" | "right", file: File) => {
