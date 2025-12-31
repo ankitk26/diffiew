@@ -15,7 +15,7 @@ import {
 	IconPlus,
 	IconEye,
 } from "@tabler/icons-react";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 
 interface DiffEditorProps {
 	left: string;
@@ -77,8 +77,29 @@ export function DiffEditor({
 	};
 
 	const toggleMode = () => {
-		setEditingSide(editingSide === null ? "both" : null);
+		setEditingSide((prev) => (prev === null ? "both" : null));
 	};
+
+	// Keyboard shortcuts
+	useEffect(() => {
+		const handleKeyDown = (e: KeyboardEvent) => {
+			// Ctrl+E or Cmd+E to toggle edit/view mode
+			if ((e.ctrlKey || e.metaKey) && e.key === "e") {
+				e.preventDefault();
+				setEditingSide((prev) => (prev === null ? "both" : null));
+			}
+			// Ctrl+Shift+S or Cmd+Shift+S to swap left and right
+			if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "S") {
+				e.preventDefault();
+				const temp = left;
+				onLeftChange?.(right);
+				onRightChange?.(temp);
+			}
+		};
+
+		window.addEventListener("keydown", handleKeyDown);
+		return () => window.removeEventListener("keydown", handleKeyDown);
+	}, [left, right, onLeftChange, onRightChange]);
 
 	const renderCharDiff = (charDiffs: CharDiff[], isLeft: boolean) => {
 		return charDiffs.map((charDiff, idx) => {
@@ -272,8 +293,8 @@ export function DiffEditor({
 						onClick={toggleMode}
 						title={
 							isEditing
-								? "Switch to viewing"
-								: "Switch to editing"
+								? "Switch to viewing (Ctrl+E)"
+								: "Switch to editing (Ctrl+E)"
 						}
 						className={cn(
 							"h-full px-3 rounded-none gap-1.5 text-[10px] font-medium",
@@ -296,7 +317,7 @@ export function DiffEditor({
 					<Button
 						variant="ghost"
 						onClick={handleSwap}
-						title="Swap"
+						title="Swap (Ctrl+Shift+S)"
 						className="h-full px-3 rounded-none text-muted-foreground hover:text-foreground"
 					>
 						<IconArrowsLeftRight className="size-3" />
