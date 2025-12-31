@@ -3,30 +3,14 @@ import { DiffEditor } from "./diff-editor";
 import { Button } from "./ui/button";
 import { IconSun, IconMoon } from "@tabler/icons-react";
 
-const defaultLeft = `function greet(name: string) {
-  return \`Hello, \${name}!\`;
-}
-
-const message = greet("World");
-console.log(message);
-`;
-
-const defaultRight = `function greet(name: string, greeting: string = "Hello") {
-  return \`\${greeting}, \${name}!\`;
-}
-
-const message = greet("World", "Hi");
-console.log(message);
-`;
-
 export function DiffViewer() {
-	const [leftText, setLeftText] = useState(defaultLeft);
-	const [rightText, setRightText] = useState(defaultRight);
+	const [leftText, setLeftText] = useState("");
+	const [rightText, setRightText] = useState("");
 	const [isDark, setIsDark] = useState(() => {
 		if (typeof window !== "undefined") {
 			return document.documentElement.classList.contains("dark");
 		}
-		return false;
+		return true; // Default to dark mode
 	});
 	const leftFileInputRef = useRef<HTMLInputElement>(null);
 	const rightFileInputRef = useRef<HTMLInputElement>(null);

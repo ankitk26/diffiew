@@ -51,7 +51,7 @@ export function DiffEditor({
 		return enhanceWithCharDiffs(diff);
 	}, [left, right]);
 
-	const [editingSide, setEditingSide] = useState<"both" | null>(null);
+	const [editingSide, setEditingSide] = useState<"both" | null>("both");
 	const leftTextareaRef = useRef<HTMLTextAreaElement>(null);
 	const rightTextareaRef = useRef<HTMLTextAreaElement>(null);
 	const isEditing = editingSide === "both";
@@ -135,11 +135,11 @@ export function DiffEditor({
 				: "text-muted-foreground/50";
 
 		return (
-			<div key={index} className="flex min-h-5">
+			<div key={index} className="flex min-h-5 items-start">
 				{/* Left Cell */}
 				<div
 					className={cn(
-						"flex-1 flex",
+						"flex-1 basis-0 min-w-0 flex items-start",
 						leftBgColor,
 						leftPlaceholderBg,
 					)}
@@ -147,25 +147,26 @@ export function DiffEditor({
 					{/* Left Gutter */}
 					<div
 						className={cn(
-							"shrink-0 w-10 px-2 text-right text-[10px] select-none leading-code tabular-nums",
+							"shrink-0 w-10 px-2 text-right text-[10px] select-none leading-code tabular-nums flex items-center justify-end",
 							leftGutterColor,
 						)}
+						style={{ minHeight: "1.25rem" }}
 					>
 						{hasLeft ? line.leftLineNumber : ""}
 					</div>
 					{/* Left Content */}
-					<div className="flex-1 px-3 text-code leading-code whitespace-pre break-all">
-						{hasLeft ? (
-							line.leftCharDiffs ? (
-								<span className="whitespace-pre">
-									{renderCharDiff(line.leftCharDiffs, true)}
-								</span>
+					<div className="flex-1 min-w-0 pr-3 text-code leading-code overflow-x-auto scrollbar-none flex items-center">
+						<span className="whitespace-pre">
+							{hasLeft ? (
+								line.leftCharDiffs ? (
+									renderCharDiff(line.leftCharDiffs, true)
+								) : (
+									line.leftLine
+								)
 							) : (
-								<span>{line.leftLine}</span>
-							)
-						) : (
-							<span className="text-transparent">&nbsp;</span>
-						)}
+								<span className="text-transparent">&nbsp;</span>
+							)}
+						</span>
 					</div>
 				</div>
 
@@ -175,7 +176,7 @@ export function DiffEditor({
 				{/* Right Cell */}
 				<div
 					className={cn(
-						"flex-1 flex",
+						"flex-1 basis-0 min-w-0 flex items-start",
 						rightBgColor,
 						rightPlaceholderBg,
 					)}
@@ -183,25 +184,26 @@ export function DiffEditor({
 					{/* Right Gutter */}
 					<div
 						className={cn(
-							"shrink-0 w-10 px-2 text-right text-[10px] select-none leading-code tabular-nums",
+							"shrink-0 w-10 px-2 text-right text-[10px] select-none leading-code tabular-nums flex items-center justify-end",
 							rightGutterColor,
 						)}
+						style={{ minHeight: "1.25rem" }}
 					>
 						{hasRight ? line.rightLineNumber : ""}
 					</div>
 					{/* Right Content */}
-					<div className="flex-1 px-3 text-code leading-code whitespace-pre break-all">
-						{hasRight ? (
-							line.rightCharDiffs ? (
-								<span className="whitespace-pre">
-									{renderCharDiff(line.rightCharDiffs, false)}
-								</span>
+					<div className="flex-1 min-w-0 pr-3 text-code leading-code overflow-x-auto scrollbar-none flex items-center">
+						<span className="whitespace-pre">
+							{hasRight ? (
+								line.rightCharDiffs ? (
+									renderCharDiff(line.rightCharDiffs, false)
+								) : (
+									line.rightLine
+								)
 							) : (
-								<span>{line.rightLine}</span>
-							)
-						) : (
-							<span className="text-transparent">&nbsp;</span>
-						)}
+								<span className="text-transparent">&nbsp;</span>
+							)}
+						</span>
 					</div>
 				</div>
 			</div>
@@ -266,7 +268,7 @@ export function DiffEditor({
 				{/* Center Controls */}
 				<div className="flex items-stretch border-x border-border/50">
 					<Button
-						variant="ghost"
+						variant={isEditing ? "default" : "ghost"}
 						onClick={toggleMode}
 						title={
 							isEditing
@@ -275,9 +277,8 @@ export function DiffEditor({
 						}
 						className={cn(
 							"h-full px-3 rounded-none gap-1.5 text-[10px] font-medium",
-							isEditing
-								? "text-primary bg-primary/10"
-								: "text-muted-foreground hover:text-foreground",
+							isEditing &&
+								"bg-primary/10 text-primary hover:bg-primary/20",
 						)}
 					>
 						{isEditing ? (
@@ -356,7 +357,7 @@ export function DiffEditor({
 
 			{/* Diff View - Single scroll container */}
 			{!isEditing ? (
-				<div className="flex-1 overflow-auto">
+				<div className="flex-1 overflow-y-auto">
 					<div className="min-w-full">
 						{diffLines.map((line, index) =>
 							renderDiffRow(line, index),
@@ -367,26 +368,26 @@ export function DiffEditor({
 				/* Edit Mode */
 				<div className="flex flex-1 overflow-hidden">
 					{/* Left Editor */}
-					<div className="flex-1 flex flex-col overflow-hidden">
+					<div className="flex-1 basis-0 min-w-0 flex flex-col overflow-hidden">
 						<textarea
 							ref={leftTextareaRef}
 							value={left}
 							onChange={(e) => onLeftChange?.(e.target.value)}
-							className="flex-1 w-full px-3 py-2 text-code leading-code whitespace-pre bg-background text-foreground caret-primary resize-none outline-none border-0"
+							className="flex-1 w-full px-3 py-2 text-code leading-code whitespace-pre overflow-auto bg-background text-foreground caret-primary resize-none outline-none border-0"
 							spellCheck={false}
 						/>
 					</div>
 
 					{/* Divider */}
-					<div className="w-px bg-border/50" />
+					<div className="w-px bg-border/50 shrink-0" />
 
 					{/* Right Editor */}
-					<div className="flex-1 flex flex-col overflow-hidden">
+					<div className="flex-1 basis-0 min-w-0 flex flex-col overflow-hidden">
 						<textarea
 							ref={rightTextareaRef}
 							value={right}
 							onChange={(e) => onRightChange?.(e.target.value)}
-							className="flex-1 w-full px-3 py-2 text-code leading-code whitespace-pre bg-background text-foreground caret-primary resize-none outline-none border-0"
+							className="flex-1 w-full px-3 py-2 text-code leading-code whitespace-pre overflow-auto bg-background text-foreground caret-primary resize-none outline-none border-0"
 							spellCheck={false}
 						/>
 					</div>
