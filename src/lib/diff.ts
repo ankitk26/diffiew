@@ -590,7 +590,9 @@ function tokenLCS(
 			result.unshift({ leftIdx: i - 1, rightIdx: j - 1 });
 			i--;
 			j--;
-		} else if (dp[i - 1][j] > dp[i][j - 1]) {
+		} else if (dp[i - 1][j] >= dp[i][j - 1]) {
+			// Prefer going left (i--) when equal to match later tokens first
+			// This minimizes the number of changes shown
 			i--;
 		} else {
 			j--;

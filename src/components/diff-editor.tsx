@@ -105,9 +105,9 @@ export function DiffEditor({
 		return charDiffs.map((charDiff, idx) => {
 			const className =
 				charDiff.type === "delete" && isLeft
-					? "bg-rose-500/40 dark:bg-rose-400/30 rounded-sm"
+					? "bg-rose-500/60 dark:bg-rose-400/30 rounded-sm"
 					: charDiff.type === "insert" && !isLeft
-						? "bg-emerald-500/40 dark:bg-emerald-400/30 rounded-sm"
+						? "bg-emerald-500/60 dark:bg-emerald-400/30 rounded-sm"
 						: "";
 			return (
 				<span key={idx} className={cn(className, "whitespace-pre")}>
@@ -124,16 +124,16 @@ export function DiffEditor({
 		// Background colors for cells
 		const leftBgColor =
 			line.type === "delete"
-				? "bg-rose-500/10 dark:bg-rose-500/20"
+				? "bg-rose-500/20 dark:bg-rose-500/20"
 				: line.type === "modify"
-					? "bg-rose-500/10 dark:bg-rose-500/20"
+					? "bg-rose-500/20 dark:bg-rose-500/20"
 					: "";
 
 		const rightBgColor =
 			line.type === "insert"
-				? "bg-emerald-500/10 dark:bg-emerald-500/20"
+				? "bg-emerald-500/20 dark:bg-emerald-500/20"
 				: line.type === "modify"
-					? "bg-emerald-500/10 dark:bg-emerald-500/20"
+					? "bg-emerald-500/20 dark:bg-emerald-500/20"
 					: "";
 
 		// Blank placeholder background (when line doesn't exist on that side)
@@ -147,12 +147,12 @@ export function DiffEditor({
 		// Gutter colors
 		const leftGutterColor =
 			line.type === "delete" || (line.type === "modify" && hasLeft)
-				? "text-rose-600/70 dark:text-rose-400/70"
+				? "text-rose-600 dark:text-rose-400/70"
 				: "text-muted-foreground/50";
 
 		const rightGutterColor =
 			line.type === "insert" || (line.type === "modify" && hasRight)
-				? "text-emerald-600/70 dark:text-emerald-400/70"
+				? "text-emerald-600 dark:text-emerald-400/70"
 				: "text-muted-foreground/50";
 
 		return (
@@ -269,7 +269,7 @@ export function DiffEditor({
 					<div className="flex-1" />
 
 					{!isEditing && diffStats.removed > 0 && (
-						<div className="flex items-center gap-1.5 text-code text-rose-600 dark:text-rose-400">
+						<div className="flex items-center gap-1.5 text-code text-rose-600 dark:text-rose-400 font-medium">
 							<IconMinus className="size-3" />
 							<span>{diffStats.removed}</span>
 						</div>
@@ -358,7 +358,7 @@ export function DiffEditor({
 					<div className="flex-1" />
 
 					{!isEditing && diffStats.added > 0 && (
-						<div className="flex items-center gap-1.5 text-code text-emerald-600 dark:text-emerald-400">
+						<div className="flex items-center gap-1.5 text-code text-emerald-600 dark:text-emerald-400 font-medium">
 							<IconPlus className="size-3" />
 							<span>{diffStats.added}</span>
 						</div>
