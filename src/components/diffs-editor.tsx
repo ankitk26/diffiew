@@ -43,7 +43,7 @@ export default function DiffsEditor() {
 									light: "vitesse-light",
 								},
 								unsafeCSS:
-									"[data-no-newline], [data-gutter-buffer='metadata'], [data-change-icon] { display: none !important; }",
+									"[data-no-newline], [data-gutter-buffer='metadata'], [data-change-icon] { display: none !important; } [data-diffs-header] [data-metadata] { order: -1; }",
 							}}
 						/>
 					</div>
