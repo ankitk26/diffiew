@@ -1,21 +1,28 @@
-# React + TypeScript + Vite + shadcn/ui
+# diffiew
 
-This is a template for a new Vite project with React, TypeScript, and shadcn/ui.
+A code diff viewer built with React, TypeScript, and [@pierre/diffs](https://diffs.com).
 
-## Adding components
+## Usage
 
-To add components to your app, run the following command:
+1. Paste your original code in the left textarea
+2. Paste your modified code in the right textarea
+3. Click **Compare** or press `Ctrl+Enter`
+
+## Dev
 
 ```bash
-npx shadcn@latest add button
+pnpm install
+pnpm dev
 ```
 
-This will place the ui components in the `src/components` directory.
+## Build
 
-## Using components
+```bash
+pnpm build
+```
 
-To use the components in your app, import them as follows:
+## Adding shadcn/ui components
 
-```tsx
-import { Button } from "@/components/ui/button";
+```bash
+npx shadcn@latest add <component>
 ```
