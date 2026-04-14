@@ -54,6 +54,7 @@ export default function DiffsEditor() {
 								) : (
 									<Button
 										size="lg"
+										variant="outline"
 										onClick={toggle}
 										disabled={bothEmpty}
 										className="flex-1"

@@ -14,6 +14,14 @@ export default function DiffView({
 	const oldFile: FileContents = { name: "", contents: oldCode };
 	const newFile: FileContents = { name: "", contents: newCode };
 
+	if (oldCode === newCode) {
+		return (
+			<div className="flex flex-1 items-center justify-center text-muted-foreground">
+				The two texts are identical
+			</div>
+		);
+	}
+
 	return (
 		<div className="flex-1 overflow-auto">
 			<MultiFileDiff
