@@ -1,10 +1,11 @@
-import { ArrowsLeftRight } from "@phosphor-icons/react";
-import { useHotkey } from "@tanstack/react-hotkeys";
-import { useSearch, useNavigate } from "@tanstack/react-router";
+import { ArrowsLeftRightIcon } from "@phosphor-icons/react";
+import { formatForDisplay, useHotkey } from "@tanstack/react-hotkeys";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useState } from "react";
 import DiffView from "./diff-view";
 import EditView from "./edit-view";
 import { Button } from "./ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 export default function DiffsEditor() {
 	const { view } = useSearch({ from: "/" });
@@ -26,6 +27,11 @@ export default function DiffsEditor() {
 		setNewCode(temp);
 	};
 
+	const resetContents = () => {
+		setOldCode("");
+		setNewCode("");
+	};
+
 	useHotkey("Mod+Enter", toggle);
 	useHotkey("Mod+S", swapContents);
 
@@ -33,34 +39,60 @@ export default function DiffsEditor() {
 		<div className="h-svh w-svw p-6">
 			<div className="flex h-full flex-col gap-4">
 				<div className="flex gap-2">
-					{isDiff ? (
-						<Button
-							variant="outline"
-							size="lg"
-							onClick={toggle}
-							className="flex-1"
-						>
-							Back to editor
-						</Button>
-					) : (
-						<Button
-							size="lg"
-							onClick={toggle}
-							disabled={bothEmpty}
-							className="flex-1"
-						>
-							Compare
-						</Button>
-					)}
+					<Tooltip>
+						<TooltipTrigger
+							render={
+								isDiff ? (
+									<Button
+										variant="outline"
+										size="lg"
+										onClick={toggle}
+										className="flex-1"
+									>
+										Back to editor
+									</Button>
+								) : (
+									<Button
+										size="lg"
+										onClick={toggle}
+										disabled={bothEmpty}
+										className="flex-1"
+									>
+										Compare
+									</Button>
+								)
+							}
+						/>
+						<TooltipContent>
+							{formatForDisplay("Mod+Enter")}
+						</TooltipContent>
+					</Tooltip>
 					<Button
-						variant="outline"
 						size="lg"
-						onClick={swapContents}
+						variant="outline"
 						className="flex-1"
+						onClick={() => resetContents()}
 					>
-						<ArrowsLeftRight className="h-4 w-4" />
-						Swap
+						Clear
 					</Button>
+					<Tooltip>
+						<TooltipTrigger
+							render={
+								<Button
+									variant="outline"
+									size="lg"
+									onClick={swapContents}
+									className="flex-1"
+								>
+									<ArrowsLeftRightIcon className="h-4 w-4" />
+									Swap
+								</Button>
+							}
+						/>
+						<TooltipContent>
+							{formatForDisplay("Mod+S")}
+						</TooltipContent>
+					</Tooltip>
 				</div>
 				{isDiff ? (
 					<DiffView oldCode={oldCode} newCode={newCode} />

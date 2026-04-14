@@ -7,11 +7,14 @@ import {
 import { z } from "zod";
 import DiffsEditor from "./components/diffs-editor";
 import { ThemeProvider } from "./components/theme-provider";
+import { TooltipProvider } from "./components/ui/tooltip";
 
 const rootRoute = createRootRoute({
 	component: () => (
 		<ThemeProvider>
-			<Outlet />
+			<TooltipProvider>
+				<Outlet />
+			</TooltipProvider>
 		</ThemeProvider>
 	),
 });
